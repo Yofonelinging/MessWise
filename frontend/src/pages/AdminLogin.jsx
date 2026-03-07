@@ -1,18 +1,14 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
-import { BASE_URL } from "../utils/apiPath";
 
-const Login = () => {
+const AdminLogin = () => {
+
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
     email: "",
     password: "",
   });
-
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
 
   const handleChange = (e) => {
     setFormData({
@@ -21,25 +17,12 @@ const Login = () => {
     });
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    setError("");
-    setLoading(true);
 
-    try {
-      const res = await axios.post(
-        `${BASE_URL}/api/auth/login`,
-        formData
-      );
+    console.log("Admin Login:", formData);
 
-      localStorage.setItem("token", res.data.token);
-
-      navigate("/dashboard");
-    } catch (err) {
-      setError(err.response?.data?.message || "Login failed");
-    } finally {
-      setLoading(false);
-    }
+    // call admin login API here
   };
 
   return (
@@ -51,18 +34,12 @@ const Login = () => {
       >
 
         <h2 className="text-2xl font-bold text-center mb-6">
-          Student Login
+          Admin Login
         </h2>
-
-        {error && (
-          <p className="text-red-500 text-sm mb-4 text-center">
-            {error}
-          </p>
-        )}
 
         {/* Email */}
         <div className="mb-4">
-          <label className="block text-sm mb-1">Email</label>
+          <label className="block text-sm mb-1">Admin Email</label>
           <input
             type="email"
             name="email"
@@ -86,40 +63,27 @@ const Login = () => {
           />
         </div>
 
-        {/* Login Button */}
         <button
           type="submit"
-          disabled={loading}
           className="w-full bg-black text-white py-2 rounded-md hover:bg-gray-800"
         >
-          {loading ? "Logging in..." : "Login"}
+          Login
         </button>
 
-        {/* Register */}
         <p className="text-sm text-center mt-4">
-          Don't have an account?{" "}
+          Student Login?{" "}
           <span
-            onClick={() => navigate("/register")}
+            onClick={() => navigate("/login")}
             className="underline cursor-pointer"
           >
-            Register
-          </span>
-        </p>
-
-        {/* Admin Login */}
-        <p className="text-sm text-center mt-2">
-          Admin?{" "}
-          <span
-            onClick={() => navigate("/admin-login")}
-            className="underline cursor-pointer font-medium"
-          >
-            Login as Admin
+            Click here
           </span>
         </p>
 
       </form>
+
     </div>
   );
 };
 
-export default Login;
+export default AdminLogin;

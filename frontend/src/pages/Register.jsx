@@ -15,42 +15,49 @@ const Register = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Handle input changes
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Handle form submit
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+
+    // Basic client-side validation
+    if (formData.password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+
     setLoading(true);
 
     try {
       const response = await axios.post(
         `${BASE_URL}${API_PATHS.AUTH.REGISTER}`,
-        formData,
         {
-          headers: {
-            "Content-Type": "application/json",
-          },
+          name: formData.name.trim(),
+          email: formData.email.trim(),
+          password: formData.password,
+        },
+        {
+          headers: { "Content-Type": "application/json" },
         }
       );
 
-      // Optional success check
-      if (response.data?.success) {
-        navigate("/login");
-      } else {
-        navigate("/login"); // fallback
+      // Save token if returned on register (remove if your API doesn't do this)
+      const token = response.data?.token;
+      if (token) {
+        localStorage.setItem("token", token);
       }
+
+      // Navigate to login (or "/" if auto-logged in via token above)
+      navigate("/login");
+
     } catch (err) {
       console.error("REGISTER ERROR 👉", err.response?.data || err);
       setError(
-        err.response?.data?.message || "Registration failed. Try again."
+        err.response?.data?.message || "Registration failed. Please try again."
       );
     } finally {
       setLoading(false);
@@ -63,21 +70,15 @@ const Register = () => {
         onSubmit={handleSubmit}
         className="bg-white p-8 rounded-lg shadow-md w-full max-w-md"
       >
-        <h2 className="text-2xl font-bold text-center mb-6">
-          PrepPilot Register
-        </h2>
+        <h2 className="text-2xl font-bold text-center mb-6">Student Register</h2>
 
         {error && (
-          <p className="text-red-500 text-sm mb-4 text-center">
-            {error}
-          </p>
+          <p className="text-red-500 text-sm mb-4 text-center">{error}</p>
         )}
 
         {/* Name */}
         <div className="mb-4">
-          <label className="block text-sm font-medium mb-1">
-            Name
-          </label>
+          <label className="block text-sm font-medium mb-1">Name</label>
           <input
             type="text"
             name="name"
@@ -91,9 +92,7 @@ const Register = () => {
 
         {/* Email */}
         <div className="mb-4">
-          <label className="block text-sm font-medium mb-1">
-            Email
-          </label>
+          <label className="block text-sm font-medium mb-1">Email</label>
           <input
             type="email"
             name="email"
@@ -107,20 +106,20 @@ const Register = () => {
 
         {/* Password */}
         <div className="mb-6">
-          <label className="block text-sm font-medium mb-1">
-            Password
-          </label>
+          <label className="block text-sm font-medium mb-1">Password</label>
           <input
             type="password"
             name="password"
-            placeholder="Create a password"
+            placeholder="Create a password (min. 6 characters)"
             value={formData.password}
             onChange={handleChange}
             required
+            minLength={6}
             className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring"
           />
         </div>
 
+        {/* Register Button */}
         <button
           type="submit"
           disabled={loading}
@@ -129,6 +128,7 @@ const Register = () => {
           {loading ? "Registering..." : "Register"}
         </button>
 
+        {/* Login Redirect */}
         <p className="text-sm text-center mt-4">
           Already have an account?{" "}
           <span
