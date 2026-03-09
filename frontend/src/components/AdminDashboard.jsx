@@ -88,7 +88,7 @@ const SubmitBtn = ({ loading, children }) => (
 );
 
 const Toast = ({ msg, type }) => msg ? (
-  <div className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-xl text-sm font-bold animate-bounce
+  <div className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-xl text-sm font-bold
     ${type === "success" ? "bg-emerald-600 text-white" : "bg-red-500 text-white"}`}>
     {type === "success" ? "✓ " : "✗ "}{msg}
   </div>
@@ -104,10 +104,10 @@ const Overview = ({ stats, loading }) => (
       </div>
     ) : (
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Meals Served"  value={stats.mealsServed}        sub="Today total"       accent="#10b981" icon="🍽️" />
-        <StatCard label="Waste Today"   value={`${stats.wasteKg} kg`}    sub="All meal types"    accent="#ef4444" icon="♻️" />
-        <StatCard label="Waste %"       value={`${stats.wastePct}%`}     sub="Target < 5%"       accent="#f97316" icon="📊" />
-        <StatCard label="Avg Rating"    value={`${stats.avgRating} ★`}   sub="From students"     accent="#6366f1" icon="⭐" />
+        <StatCard label="Meals Served" value={stats.mealsServed}      sub="Today total"    accent="#10b981" icon="🍽️" />
+        <StatCard label="Waste Today"  value={`${stats.wasteKg} kg`}  sub="All meal types" accent="#ef4444" icon="♻️" />
+        <StatCard label="Waste %"      value={`${stats.wastePct}%`}   sub="Target < 5%"    accent="#f97316" icon="📊" />
+        <StatCard label="Avg Rating"   value={`${stats.avgRating} ★`} sub="From students"  accent="#6366f1" icon="⭐" />
       </div>
     )}
     <div className="bg-gray-900 text-white rounded-2xl px-6 py-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
@@ -125,24 +125,33 @@ const Overview = ({ stats, loading }) => (
 
 // ── Section: Menu Management ───────────────────────────────
 const MenuManagement = ({ onToast }) => {
-  const [form, setForm]     = useState({ date: todayStr(), breakfast:"", lunch:"", dinner:"" });
+  const [form, setForm]       = useState({ date: todayStr(), breakfast:"", lunch:"", dinner:"" });
   const [loading, setLoading] = useState(false);
 
   const set = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
 
+  // ✅ Correct: posts to MENU.POST
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await axios.post(`${BASE_URL}${API_PATHS.MENU.POST}`, {
-        date:      form.date,
-        breakfast: form.breakfast.split(",").map(s => s.trim()).filter(Boolean),
-        lunch:     form.lunch.split(",").map(s => s.trim()).filter(Boolean),
-        dinner:    form.dinner.split(",").map(s => s.trim()).filter(Boolean),
-      }, { headers: { "Content-Type":"application/json", Authorization:`Bearer ${localStorage.getItem("adminToken")}` } });
+      const token = localStorage.getItem("adminToken");
+      console.log("Menu URL:", `${BASE_URL}${API_PATHS.MENU.POST}`);
+      await axios.post(
+        `${BASE_URL}${API_PATHS.MENU.POST}`,
+        {
+          date:      form.date,
+          breakfast: form.breakfast.split(",").map(s => s.trim()).filter(Boolean),
+          lunch:     form.lunch.split(",").map(s => s.trim()).filter(Boolean),
+          dinner:    form.dinner.split(",").map(s => s.trim()).filter(Boolean),
+        },
+        { headers: { "Content-Type":"application/json", Authorization:`Bearer ${token}` } }
+      );
       onToast("Menu saved! Students can now see today's menu.", "success");
       setForm({ date: todayStr(), breakfast:"", lunch:"", dinner:"" });
     } catch (err) {
+      console.log("Menu error status:", err.response?.status);
+      console.log("Menu error data:",   err.response?.data);
       onToast(err.response?.data?.message || "Failed to save menu.", "error");
     } finally { setLoading(false); }
   };
@@ -152,7 +161,8 @@ const MenuManagement = ({ onToast }) => {
       <SectionTitle>Menu Management</SectionTitle>
       <Card>
         <p className="text-xs text-gray-400 mb-5">
-          Enter comma-separated items per meal. Students fetch this via <code className="bg-gray-100 px-1.5 rounded">GET /menu/today</code>.
+          Enter comma-separated items per meal. Students fetch this via{" "}
+          <code className="bg-gray-100 px-1.5 rounded">GET /menu/today</code>.
         </p>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <Field label="Date">
@@ -176,21 +186,39 @@ const MenuManagement = ({ onToast }) => {
 
 // ── Section: Waste Entry ───────────────────────────────────
 const WasteEntry = ({ onToast }) => {
-  const [form, setForm]     = useState({ date: todayStr(), mealType:"Breakfast", dish:"", prepared:"", leftover:"" });
+  const [form, setForm]       = useState({ date: todayStr(), mealType:"Breakfast", dish:"", prepared:"", leftover:"" });
   const [loading, setLoading] = useState(false);
 
   const set = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
 
+  // ✅ Correct: posts to MEAL_DATA.POST with debug logs
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await axios.post(`${BASE_URL}${API_PATHS.MEAL_DATA.POST}`,
+      const token = localStorage.getItem("adminToken");
+
+      console.log("Token:", token);
+      console.log("Waste URL:", `${BASE_URL}${API_PATHS.MEAL_DATA.POST}`);
+      console.log("Payload:", {
+        ...form,
+        prepared: parseFloat(form.prepared),
+        leftover: parseFloat(form.leftover),
+      });
+
+      const res = await axios.post(
+        `${BASE_URL}${API_PATHS.MEAL_DATA.POST}`,
         { ...form, prepared: parseFloat(form.prepared), leftover: parseFloat(form.leftover) },
-        { headers: { "Content-Type":"application/json", Authorization:`Bearer ${localStorage.getItem("adminToken")}` } });
+        { headers: { "Content-Type":"application/json", Authorization:`Bearer ${token}` } }
+      );
+
+      console.log("Waste response:", res.data);
       onToast("Waste data saved successfully.", "success");
       setForm({ date: todayStr(), mealType:"Breakfast", dish:"", prepared:"", leftover:"" });
     } catch (err) {
+      console.log("Waste error status:", err.response?.status);
+      console.log("Waste error data:",   err.response?.data);
+      console.log("Full error:",         err.message);
       onToast(err.response?.data?.message || "Failed to save waste data.", "error");
     } finally { setLoading(false); }
   };
@@ -204,7 +232,8 @@ const WasteEntry = ({ onToast }) => {
       <SectionTitle>Waste Data Entry</SectionTitle>
       <Card>
         <p className="text-xs text-gray-400 mb-5">
-          This feeds the Analytics charts and the Student Waste Awareness card via <code className="bg-gray-100 px-1.5 rounded">GET /analytics</code>.
+          This feeds the Analytics charts and the Student Waste Awareness card via{" "}
+          <code className="bg-gray-100 px-1.5 rounded">GET /analytics</code>.
         </p>
         <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Date">
@@ -221,10 +250,12 @@ const WasteEntry = ({ onToast }) => {
             </Field>
           </div>
           <Field label="Qty Prepared (kg)">
-            <input type="number" step="0.1" min="0" className={inputCls} placeholder="50" value={form.prepared} onChange={set("prepared")} required />
+            <input type="number" step="0.1" min="0" className={inputCls} placeholder="50"
+              value={form.prepared} onChange={set("prepared")} required />
           </Field>
           <Field label="Qty Leftover (kg)">
-            <input type="number" step="0.1" min="0" className={inputCls} placeholder="12" value={form.leftover} onChange={set("leftover")} required />
+            <input type="number" step="0.1" min="0" className={inputCls} placeholder="12"
+              value={form.leftover} onChange={set("leftover")} required />
           </Field>
 
           {wastePct !== null && (
@@ -236,7 +267,9 @@ const WasteEntry = ({ onToast }) => {
               </p>
             </div>
           )}
-          <div className="sm:col-span-2"><SubmitBtn loading={loading}>Save Waste Data</SubmitBtn></div>
+          <div className="sm:col-span-2">
+            <SubmitBtn loading={loading}>Save Waste Data</SubmitBtn>
+          </div>
         </form>
       </Card>
     </div>
@@ -436,18 +469,17 @@ const MealHistory = ({ history, loading }) => (
 
 // ── MAIN ───────────────────────────────────────────────────
 const AdminDashboard = () => {
-  const navigate    = useNavigate();
-  const [tab, setTab]   = useState("overview");
-  const [toast, setToast] = useState({ msg:"", type:"" });
-
-  const [stats, setStats]         = useState(MOCK_STATS);
-  const [wasteByDish, setDish]    = useState(MOCK_DISH);
-  const [wasteTrend, setTrend]    = useState(MOCK_TREND);
-  const [wasteByMeal, setByMeal]  = useState(MOCK_BY_MEAL);
-  const [ratings, setRatings]     = useState(MOCK_RATINGS);
-  const [prediction, setPred]     = useState(MOCK_PREDICTION);
-  const [history, setHistory]     = useState(MOCK_HISTORY);
-  const [loading, setLoading]     = useState(false);
+  const navigate              = useNavigate();
+  const [tab, setTab]         = useState("overview");
+  const [toast, setToast]     = useState({ msg:"", type:"" });
+  const [stats, setStats]     = useState(MOCK_STATS);
+  const [wasteByDish, setDish]  = useState(MOCK_DISH);
+  const [wasteTrend, setTrend]  = useState(MOCK_TREND);
+  const [wasteByMeal, setByMeal] = useState(MOCK_BY_MEAL);
+  const [ratings, setRatings]   = useState(MOCK_RATINGS);
+  const [prediction, setPred]   = useState(MOCK_PREDICTION);
+  const [history, setHistory]   = useState(MOCK_HISTORY);
+  const [loading, setLoading]   = useState(false);
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -470,13 +502,16 @@ const AdminDashboard = () => {
         if (d.ratings)     setRatings(d.ratings);
         if (d.prediction)  setPred(d.prediction);
         if (d.history)     setHistory(d.history);
-      } catch { /* use mock data */ }
+      } catch { /* fall back to mock data silently */ }
       finally { setLoading(false); }
     };
     load();
   }, []);
 
-  const logout = () => { localStorage.removeItem("adminToken"); navigate("/admin-login"); };
+  const logout = () => {
+    localStorage.removeItem("adminToken");
+    navigate("/admin-login");
+  };
 
   const content = {
     overview:   <Overview stats={stats} loading={loading} />,

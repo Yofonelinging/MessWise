@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { BASE_URL, API_PATHS } from "../utils/apiPath";
+const BASE_URL = import.meta.env.VITE_BASE_URL || "http://localhost:4000";
+const API_PATHS = { AUTH: { REGISTER: "/api/auth/register" } };
 
 const Register = () => {
   const navigate = useNavigate();
