@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { BASE_URL, API_PATHS } from "../utils/apiPath";
@@ -30,7 +30,7 @@ const TYPE_CONFIG = {
   },
 };
 
-const RATE_DISHES = ["Rice", "Dal", "Paneer Curry", "Chapati"];
+const DEFAULT_DISHES = ["Rice", "Dal", "Paneer Curry", "Chapati"];
 
 // ── Sub-components ─────────────────────────────────────────
 const SectionTitle = ({ children }) => (
@@ -83,23 +83,314 @@ const MenuSkeleton = () => (
   </div>
 );
 
+// ── Dietary Preferences (Phase 3) ─────────────────────────
+const DIET_OPTIONS = ["veg", "non-veg", "vegan", "jain", "eggetarian"];
+const CUISINE_OPTIONS = ["north", "south", "continental", "chinese", "no-preference"];
+
+const PreferenceSection = () => {
+  const [prefs, setPrefs] = useState({
+    dietaryPreference: "veg",
+    cuisinePreference: ["no-preference"],
+    hostel: "",
+    isAthlete: false,
+  });
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await axios.get(`${BASE_URL}${API_PATHS.NUTRITION.PROFILE_GET}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.data.user) {
+          setPrefs({
+            dietaryPreference: res.data.user.dietaryPreference || "veg",
+            cuisinePreference: res.data.user.cuisinePreference?.length ? res.data.user.cuisinePreference : ["no-preference"],
+            hostel: res.data.user.hostel || "",
+            isAthlete: res.data.user.isAthlete || false,
+          });
+        }
+      } catch { /* silent */ }
+    };
+    fetchProfile();
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const token = localStorage.getItem("token");
+      await axios.put(
+        `${BASE_URL}${API_PATHS.NUTRITION.PROFILE_PUT}`,
+        prefs,
+        { headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } }
+      );
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch { /* silent */ }
+    finally { setSaving(false); }
+  };
+
+  const toggleCuisine = (c) => {
+    setPrefs(p => {
+      let list = [...p.cuisinePreference];
+      if (c === "no-preference") return { ...p, cuisinePreference: ["no-preference"] };
+      list = list.filter(x => x !== "no-preference");
+      if (list.includes(c)) list = list.filter(x => x !== c);
+      else list.push(c);
+      if (list.length === 0) list = ["no-preference"];
+      return { ...p, cuisinePreference: list };
+    });
+  };
+
+  return (
+    <section>
+      <SectionTitle>My Dietary Preferences</SectionTitle>
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col gap-5">
+        <p className="text-sm text-gray-500 -mt-1">Help us plan better menus by sharing your preferences.</p>
+
+        {/* Diet Type */}
+        <div>
+          <p className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Diet Type</p>
+          <div className="flex flex-wrap gap-2">
+            {DIET_OPTIONS.map(opt => (
+              <button key={opt} onClick={() => setPrefs(p => ({ ...p, dietaryPreference: opt }))}
+                className={`px-4 py-2 rounded-xl text-sm font-bold capitalize transition
+                  ${prefs.dietaryPreference === opt ? "bg-black text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                {opt}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Cuisine */}
+        <div>
+          <p className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Cuisine Preference (select multiple)</p>
+          <div className="flex flex-wrap gap-2">
+            {CUISINE_OPTIONS.map(opt => (
+              <button key={opt} onClick={() => toggleCuisine(opt)}
+                className={`px-4 py-2 rounded-xl text-sm font-bold capitalize transition
+                  ${prefs.cuisinePreference.includes(opt) ? "bg-black text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                {opt.replace(/-/g, " ")}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Hostel + Athlete */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <p className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Hostel / Block</p>
+            <input
+              value={prefs.hostel}
+              onChange={e => setPrefs(p => ({ ...p, hostel: e.target.value }))}
+              placeholder="e.g. Block A"
+              className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-black"
+            />
+          </div>
+          <div className="flex items-end">
+            <label className="flex items-center gap-3 cursor-pointer bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 w-full">
+              <input type="checkbox" checked={prefs.isAthlete}
+                onChange={e => setPrefs(p => ({ ...p, isAthlete: e.target.checked }))}
+                className="w-4 h-4 accent-black" />
+              <span className="text-sm font-semibold text-gray-700">I am an athlete (need extra protein)</span>
+            </label>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button onClick={handleSave} disabled={saving}
+            className="px-6 py-2.5 rounded-xl bg-black text-white text-sm font-bold hover:bg-gray-800 transition disabled:opacity-50">
+            {saving ? "Saving..." : "Save Preferences"}
+          </button>
+          {saved && <span className="text-sm font-bold text-emerald-600">✓ Saved!</span>}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+// ── GreenPoints (Phase 5 Gamification) ────────────────────
+const LEVEL_EMOJIS = ["🌱", "🌿", "🌳", "🌲", "🌻", "🌺", "🌍", "⭐", "🚀", "💎", "∞"];
+
+const GreenPointsSection = () => {
+  const [gp, setGp] = useState(null);
+  const [awarding, setAwarding] = useState(false);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await axios.get(`${BASE_URL}${API_PATHS.GAMIFICATION.PROFILE}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setGp(res.data);
+      } catch { /* silent */ }
+    };
+    fetchProfile();
+  }, []);
+
+  const earnPoints = async (action, points, detail) => {
+    setAwarding(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.post(
+        `${BASE_URL}${API_PATHS.GAMIFICATION.AWARD}`,
+        { action, points, detail },
+        { headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } }
+      );
+      // Refresh profile
+      const profileRes = await axios.get(`${BASE_URL}${API_PATHS.GAMIFICATION.PROFILE}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setGp(profileRes.data);
+    } catch { /* silent */ }
+    finally { setAwarding(false); }
+  };
+
+  if (!gp) return null;
+
+  return (
+    <section>
+      <SectionTitle>GreenPoints 🌿</SectionTitle>
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col gap-5">
+        {/* Level & Progress */}
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-emerald-100 flex items-center justify-center text-2xl shrink-0">
+            {LEVEL_EMOJIS[gp.level - 1] || "🌟"}
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-black text-gray-800">Level {gp.level}: {gp.levelName}</span>
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">{gp.points} pts</span>
+            </div>
+            <div className="w-full bg-gray-100 rounded-full h-2.5 mt-1.5 overflow-hidden">
+              <div className="h-2.5 rounded-full bg-emerald-500 transition-all duration-700" style={{ width: `${gp.progressPct}%` }} />
+            </div>
+            <p className="text-xs text-gray-400 mt-1">{gp.nextLevelAt - gp.points} pts to next level</p>
+          </div>
+        </div>
+
+        {/* Stats row */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-center">
+            <p className="text-lg font-black text-amber-600">🔥 {gp.streak}</p>
+            <p className="text-xs text-amber-500 font-bold">Day Streak</p>
+          </div>
+          <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center">
+            <p className="text-lg font-black text-emerald-600">🌍 {gp.totalCO2Saved}</p>
+            <p className="text-xs text-emerald-500 font-bold">kg CO₂ Saved</p>
+          </div>
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-center">
+            <p className="text-lg font-black text-blue-600">🍽️ {gp.totalFoodSaved}</p>
+            <p className="text-xs text-blue-500 font-bold">kg Food Saved</p>
+          </div>
+        </div>
+
+        {/* Badges */}
+        {gp.earnedBadges?.length > 0 && (
+          <div>
+            <p className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Badges Earned</p>
+            <div className="flex flex-wrap gap-2">
+              {gp.earnedBadges.map(b => (
+                <span key={b.id} className="bg-gray-100 px-3 py-1.5 rounded-full text-sm font-bold text-gray-700">
+                  {b.icon} {b.name}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Quick Actions */}
+        <div>
+          <p className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Earn Points</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <button onClick={() => earnPoints("clean_plate", 10, "Clean Plate Pledge")} disabled={awarding}
+              className="px-4 py-2.5 rounded-xl bg-emerald-500 text-white text-sm font-bold hover:bg-emerald-600 transition disabled:opacity-50">
+              🍽️ Clean Plate (+10)
+            </button>
+            <button onClick={() => earnPoints("low_waste", 5, "Took less, wasted none")} disabled={awarding}
+              className="px-4 py-2.5 rounded-xl bg-blue-500 text-white text-sm font-bold hover:bg-blue-600 transition disabled:opacity-50">
+              ♻️ Zero Waste (+5)
+            </button>
+            <button onClick={() => earnPoints("feedback", 3, "Gave meal feedback")} disabled={awarding}
+              className="px-4 py-2.5 rounded-xl bg-amber-500 text-white text-sm font-bold hover:bg-amber-600 transition disabled:opacity-50">
+              ⭐ Feedback (+3)
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
 // ── Main Dashboard ─────────────────────────────────────────
 const StudentDashboard = () => {
-  const navigate    = useNavigate();
+  const navigate = useNavigate();
   const studentName = localStorage.getItem("studentName") || "Student";
 
   // Menu state
-  const [menu, setMenu]           = useState({});      // { Breakfast: [...], Lunch: [...], Dinner: [...] }
+  const [menu, setMenu] = useState({});      // { Breakfast: [...], Lunch: [...], Dinner: [...] }
   const [menuLoading, setMenuLoading] = useState(true);
-  const [menuError, setMenuError]   = useState("");
+  const [menuError, setMenuError] = useState("");
+
+  // Derive rating dishes from fetched menu, fallback to defaults
+  const rateDishes = useMemo(() => {
+    const all = [...(menu.Breakfast || []), ...(menu.Lunch || []), ...(menu.Dinner || [])];
+    return all.length > 0 ? [...new Set(all)] : DEFAULT_DISHES;
+  }, [menu]);
 
   // Ratings & feedback
-  const [ratings, setRatings]     = useState(Object.fromEntries(RATE_DISHES.map((d) => [d, 0])));
-  const [feedback, setFeedback]   = useState("");
+  const [ratings, setRatings] = useState({});
+  const [feedback, setFeedback] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [ratingsSubmitted, setRatingsSubmitted] = useState(false);
+  const [stats, setStats] = useState({ wasteKg: 0, wastePct: 0 });
   const MAX_CHARS = 200;
 
-  const ratedCount    = Object.values(ratings).filter((r) => r > 0).length;
+  const handleSubmitRatings = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const localDate = new Date();
+      const today = `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, "0")}-${String(localDate.getDate()).padStart(2, "0")}`;
+
+      const promises = Object.entries(ratings)
+        .filter(([dish, rating]) => rating > 0)
+        .map(([dish, rating]) =>
+          axios.post(
+            `${BASE_URL}${API_PATHS.RATINGS.POST}`,
+            { dish, rating, date: today },
+            { headers: { Authorization: `Bearer ${token}` } }
+          )
+        );
+
+      await Promise.all(promises);
+      setRatingsSubmitted(true);
+      setTimeout(() => setRatingsSubmitted(false), 3000);
+    } catch (err) {
+      console.error("Failed to submit ratings", err);
+    }
+  };
+
+  const handleSubmitFeedback = async () => {
+    if (!feedback.trim()) return;
+    try {
+      const token = localStorage.getItem("token");
+      const localDate = new Date();
+      const today = `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, "0")}-${String(localDate.getDate()).padStart(2, "0")}`;
+      await axios.post(
+        `${BASE_URL}${API_PATHS.FEEDBACK.POST}`,
+        { text: feedback, date: today },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setSubmitted(true);
+    } catch (err) {
+      console.error("Failed to submit feedback", err);
+    }
+  };
+
+  const ratedCount = Object.values(ratings).filter((r) => r > 0).length;
   const averageRating = ratedCount
     ? (Object.values(ratings).filter((r) => r > 0).reduce((a, b) => a + b, 0) / ratedCount).toFixed(1)
     : null;
@@ -119,7 +410,7 @@ const StudentDashboard = () => {
         // GET /api/meals/today  →  expects array of meal objects
         // Each meal: { _id, type: "Breakfast"|"Lunch"|"Dinner", items: string[] | string, date }
         const res = await axios.get(
-          `${BASE_URL}${API_PATHS.MEALS.GET_TODAY}`,
+          `${BASE_URL}${API_PATHS.MENU.GET_TODAY}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
 
@@ -135,10 +426,10 @@ const StudentDashboard = () => {
           const items = Array.isArray(meal.items)
             ? meal.items
             : typeof meal.items === "string"
-            ? meal.items.split(",").map((s) => s.trim())
-            : meal.name
-            ? [meal.name]
-            : [];
+              ? meal.items.split(",").map((s) => s.trim())
+              : meal.name
+                ? [meal.name]
+                : [];
 
           grouped[type] = [...grouped[type], ...items];
         });
@@ -152,7 +443,22 @@ const StudentDashboard = () => {
       }
     };
 
+    const fetchStats = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await axios.get(`${BASE_URL}${API_PATHS.ANALYTICS.GET_SUMMARY}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.data?.stats) {
+          setStats(res.data.stats);
+        }
+      } catch (err) {
+        console.error("Stats fetch error:", err);
+      }
+    };
+
     fetchMenu();
+    fetchStats();
   }, []);
 
   const handleLogout = () => {
@@ -162,10 +468,10 @@ const StudentDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen font-sans">
 
       {/* ── HEADER ── */}
-      <header className="bg-white border-b border-gray-100 shadow-sm sticky top-0 z-20">
+      <header className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-gray-100 shadow-sm">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 rounded-xl bg-black flex items-center justify-center text-white font-black text-xs shrink-0">
@@ -246,7 +552,7 @@ const StudentDashboard = () => {
           {!menuLoading && !menuError && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {MEAL_TYPES.map((type) => {
-                const cfg   = TYPE_CONFIG[type];
+                const cfg = TYPE_CONFIG[type];
                 const items = menu[type] || [];
 
                 return (
@@ -294,25 +600,38 @@ const StudentDashboard = () => {
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col gap-5">
             <p className="text-sm text-gray-500 -mt-1">Tap the stars to rate each dish.</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {RATE_DISHES.map((dish) => (
+              {rateDishes.map((dish) => (
                 <div
                   key={dish}
                   className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 border border-gray-100 hover:border-gray-200 transition"
                 >
                   <span className="text-sm font-semibold text-gray-800">{dish}</span>
                   <StarRating
-                    value={ratings[dish]}
-                    onChange={(v) => setRatings((p) => ({ ...p, [dish]: v }))}
+                    value={ratings[dish] || 0}
+                    onChange={(v) => {
+                      setRatings((p) => ({ ...p, [dish]: v }));
+                    }}
                   />
                 </div>
               ))}
             </div>
             {averageRating && (
-              <div className="flex items-center gap-3 bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
-                <span className="text-amber-400 text-xl leading-none">★</span>
-                <div>
-                  <p className="text-sm font-bold text-amber-700">Your average rating: {averageRating} / 5</p>
-                  <p className="text-xs text-amber-500 mt-0.5">{ratedCount} of {RATE_DISHES.length} dishes rated</p>
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-between bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-amber-400 text-xl leading-none">★</span>
+                    <div>
+                      <p className="text-sm font-bold text-amber-700">Your average rating: {averageRating} / 5</p>
+                      <p className="text-xs text-amber-500 mt-0.5">{ratedCount} of {rateDishes.length} dishes rated</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleSubmitRatings}
+                    disabled={ratingsSubmitted}
+                    className="px-4 py-2 bg-amber-500 text-white text-sm font-bold rounded-xl hover:bg-amber-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {ratingsSubmitted ? "Saved!" : "Submit Ratings"}
+                  </button>
                 </div>
               </div>
             )}
@@ -350,7 +669,7 @@ const StudentDashboard = () => {
                     {feedback.length} / {MAX_CHARS}
                   </span>
                   <button
-                    onClick={() => feedback.trim() && setSubmitted(true)}
+                    onClick={handleSubmitFeedback}
                     disabled={!feedback.trim()}
                     className="px-5 py-2 rounded-xl bg-black text-white text-sm font-bold hover:bg-gray-800 transition disabled:opacity-40 disabled:cursor-not-allowed"
                   >
@@ -361,6 +680,12 @@ const StudentDashboard = () => {
             )}
           </div>
         </section>
+
+        {/* ── DIETARY PREFERENCES ── */}
+        <PreferenceSection />
+
+        {/* ── GREENPOINTS ── */}
+        <GreenPointsSection />
 
         {/* ── FOOD WASTE AWARENESS ── */}
         <section>
@@ -373,10 +698,10 @@ const StudentDashboard = () => {
                   <span className="text-xs font-black uppercase tracking-widest text-red-400">Today's Food Waste</span>
                 </div>
                 <p className="text-4xl font-black text-red-600" style={{ letterSpacing: "-1.5px" }}>
-                  85 <span className="text-lg font-semibold">kg</span>
+                  {stats.wasteKg} <span className="text-lg font-semibold">kg</span>
                 </p>
-                <GaugeBar percent={17} color="#ef4444" />
-                <p className="text-xs text-red-400">Out of ~500 kg total food prepared</p>
+                <GaugeBar percent={Math.min(stats.wastePct * 2, 100)} color="#ef4444" />
+                <p className="text-xs text-red-400">Monitored closely by the mess committee</p>
               </div>
               <div className="rounded-2xl border border-orange-100 bg-orange-50 p-5 flex flex-col gap-3">
                 <div className="flex items-center gap-2">
@@ -384,9 +709,9 @@ const StudentDashboard = () => {
                   <span className="text-xs font-black uppercase tracking-widest text-orange-400">Waste Percentage</span>
                 </div>
                 <p className="text-4xl font-black text-orange-500" style={{ letterSpacing: "-1.5px" }}>
-                  7<span className="text-lg font-semibold">%</span>
+                  {stats.wastePct}<span className="text-lg font-semibold">%</span>
                 </p>
-                <GaugeBar percent={7} color="#f97316" />
+                <GaugeBar percent={stats.wastePct} color="#f97316" />
                 <p className="text-xs text-orange-400">Target: keep below 5%</p>
               </div>
             </div>

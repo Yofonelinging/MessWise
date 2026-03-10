@@ -14,7 +14,12 @@ router.post("/", protect, adminOnly, async (req, res) => {
     if (leftover > prepared)
       return res.status(400).json({ message: "Leftover cannot exceed prepared quantity." });
 
-    const entry = await MealData.create({ date, mealType, dish, prepared, leftover });
+    const wastePct = prepared > 0
+      ? parseFloat(((leftover / prepared) * 100).toFixed(1))
+      : 0;
+
+    const entry = new MealData({ date, mealType, dish, prepared, leftover, wastePct });
+    await entry.save();
     res.status(201).json({ success: true, entry });
   } catch (err) {
     res.status(500).json({ message: err.message });

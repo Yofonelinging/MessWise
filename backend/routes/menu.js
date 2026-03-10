@@ -7,16 +7,18 @@ const router = express.Router();
 // GET /api/menu/today  →  used by Student Dashboard
 router.get("/today", async (req, res) => {
   try {
-    const today = new Date().toISOString().split("T")[0];
-    const menu  = await Menu.findOne({ date: today });
+    // Use local server date (not UTC) to match admin-posted dates
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const menu = await Menu.findOne({ date: today });
 
     if (!menu)
       return res.status(404).json({ message: "No menu posted for today yet." });
 
     const meals = [
       ...menu.breakfast.map(name => ({ type: "Breakfast", items: [name], date: new Date().toISOString() })),
-      ...menu.lunch.map(name     => ({ type: "Lunch",     items: [name], date: new Date().toISOString() })),
-      ...menu.dinner.map(name    => ({ type: "Dinner",    items: [name], date: new Date().toISOString() })),
+      ...menu.lunch.map(name => ({ type: "Lunch", items: [name], date: new Date().toISOString() })),
+      ...menu.dinner.map(name => ({ type: "Dinner", items: [name], date: new Date().toISOString() })),
     ];
 
     res.json({ meals, raw: menu });
